@@ -1,0 +1,6 @@
+sequence_name,n_nt,sequence,n_qubits_naive,n_qubits_filtered,nussinov_structure,nussinov_n_pairs,qubo_exact_structure,qubo_exact_energy,qubo_matches_nussinov,qaoa_structure,qaoa_energy,qaoa_runtime_sec,qaoa_matches_exact,vienna_mfe_structure,vienna_mfe_energy,base_pair_distance,precision,recall,f1,exact_match
+toy_hairpin_9nt,9,GGGAAACCC,9,7,(((...))),3,(((...))),-5.0,True,(((...))),-5.0,5.13,True,(((...))),-1.2000000476837158,0,1.0,1.0,1.0,True
+toy_bulge_11nt,11,GGGACAAGCCC,10,5,(((.....))),3,(((.....))),-5.0,True,(((.....))),-5.0,4.59,True,(((.....))),-2.200000047683716,0,1.0,1.0,1.0,True
+challenge_example_44nt,44,GGAGCAAAACUUGUCGAUUGAGAACAAAAUACAGAAUUUGCUUG,313,26,.((((.(((..(.(((((((....)))..).).)))))))))).,15,,,,skipped (m=313 > max_qubits_qaoa=25),,,,.(((((((..((((...(((....)))...))))..))))))).,-7.900000095367432,15,0.467,0.5,0.483,False
+random_20nt_seed7,20,GCUAAAGACAAUUACAUAAC,39,5,(.(..(((...))...)).),5,,,,skipped (m=39 > max_qubits_qaoa=25),,,,....................,0.0,5,0.0,0.0,0.0,False
+random_30nt_seed11,30,UUUCCUCAUGCAAUUCAAAACCAUGUCCGU,113,13,(((..(.((...))..)))((...))..).,8,,,,skipped (m=113 > max_qubits_qaoa=25),,,,......((((...........)))).....,-0.10000000149011612,12,0.0,0.0,0.0,False
