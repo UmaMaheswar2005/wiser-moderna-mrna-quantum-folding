@@ -1,0 +1,24 @@
+# --- always needed (pure classical side: qubo_builder, classical_solvers, scaling_analysis) ---
+numpy
+scipy
+matplotlib
+networkx
+
+# --- needed for classical_reference.py (your ViennaRNA ground truth) ---
+ViennaRNA
+
+# --- needed for quantum_solver_qaoa.py ---
+qiskit
+qiskit-aer
+
+# NOTE: we deliberately did NOT build this project on top of qiskit-optimization
+# (the QuadraticProgram / MinimumEigenOptimizer path). As of mid-2026 that
+# package is community-maintained rather than officially supported by IBM
+# (see the warning on its PyPI page), and its API has churned a fair amount.
+# quantum_solver_qaoa.py instead builds the QAOA circuit directly from the
+# Ising (h, J) form with core `qiskit` + `qiskit-aer`, which is a much smaller,
+# more stable dependency surface. If you'd still like the higher-level path
+# (e.g. to try Qiskit's built-in QAOA class or swap in a different classical
+# optimizer with less code), `pip install qiskit-optimization qiskit-algorithms`
+# and adapt qubo_builder.build_qubo()'s (linear, quadratic) output into a
+# `QuadraticProgram` -- a few lines, and a good exercise in its own right.
