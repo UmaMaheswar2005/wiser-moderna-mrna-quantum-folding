@@ -1,5 +1,0 @@
-alpha,reps,shots,n_iterations,final_cvar,best_energy_found,ground_state_energy,found_ground_state,convergence_iteration
-0.1,2,2048,36,-3.2549,-5.0,-5.0,True,36
-0.25,2,2048,38,-2.3555,-5.0,-5.0,True,38
-0.5,2,2048,42,-0.0713,-5.0,-5.0,True,42
-0.75,2,2048,37,9.2721,-5.0,-5.0,True,37
