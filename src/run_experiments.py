@@ -29,19 +29,7 @@ from sequence_utils import pairs_to_dot_bracket
 from qubo_builder import build_qubo, decode_solution
 from classical_solvers import nussinov_max_pairs, solve_qubo_brute_force
 
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "..", "results")
-RESULTS_CSV = os.path.join(RESULTS_DIR, f"experiments_{timestamp}.csv")
-os.makedirs(RESULTS_DIR, exist_ok=True)
-
-headers = ["timestamp", "sequence", "energy"]
-row_data = [timestamp, "AUGCAU", -12.5] 
-
-with open(RESULTS_CSV, mode="w", newline="") as file:
-    writer = csv.writer(file)
-    writer.writerow(headers)
-    writer.writerow(row_data)
-
 
 FIELDNAMES = [
     "sequence_name", "n_nt", "sequence",
@@ -54,8 +42,8 @@ FIELDNAMES = [
 ]
 
 
-def run_one(name, sequence, use_qaoa=False, max_qubits_qaoa=25, bpp_threshold=0.01,
-            qaoa_reps=2, qaoa_shots=2048):
+def run_one(name, sequence, use_qaoa=False, max_qubits_qaoa=24, bpp_threshold=0.01,
+            qaoa_reps=2, qaoa_shots=2048, available_ram_gb=4):
     row = {k: "" for k in FIELDNAMES}
     row["sequence_name"] = name
     row["n_nt"] = len(sequence)
@@ -88,10 +76,11 @@ def run_one(name, sequence, use_qaoa=False, max_qubits_qaoa=25, bpp_threshold=0.
 
     if use_qaoa and m <= max_qubits_qaoa:
         try:
-            from quantum_solver_qaoa import solve_qubo_qaoa
+            from quantum_solver_qaoa import solve_qubo_qaoa, TooManyQubitsForStatevector
             t0 = time.time()
             result = solve_qubo_qaoa(linear, quadratic, m, reps=qaoa_reps,
-                                      shots=qaoa_shots, verbose=False)
+                                      shots=qaoa_shots, verbose=False,
+                                      available_ram_gb=available_ram_gb)
             runtime = time.time() - t0
             qaoa_pairs = decode_solution(result["x"], pairs)
             qaoa_structure = pairs_to_dot_bracket(sequence, qaoa_pairs)
@@ -100,6 +89,8 @@ def run_one(name, sequence, use_qaoa=False, max_qubits_qaoa=25, bpp_threshold=0.
             row["qaoa_runtime_sec"] = round(runtime, 2)
             if qubo_structure is not None:
                 row["qaoa_matches_exact"] = (qaoa_structure == qubo_structure)
+        except TooManyQubitsForStatevector as exc:
+            row["qaoa_structure"] = f"skipped (memory limit: {exc})"
         except (ImportError, ModuleNotFoundError) as exc:
             row["qaoa_structure"] = f"skipped (missing dependency: {exc})"
     elif use_qaoa:
@@ -130,26 +121,38 @@ def run_one(name, sequence, use_qaoa=False, max_qubits_qaoa=25, bpp_threshold=0.
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--qaoa", action="store_true", help="also run QAOA (needs qiskit + qiskit-aer)")
-    parser.add_argument("--max-qubits-qaoa", type=int, default=25,
+    parser.add_argument("--max-qubits-qaoa", type=int, default=24,
                          help="skip QAOA above this qubit count (keeps runtime sane)")
+    parser.add_argument("--ram-gb", type=float, default=4,
+                         help="RAM available to this qBraid session: Small=4, Medium=8, Large=25. "
+                              "Used to pre-check whether a circuit fits in memory before running it, "
+                              "instead of crashing partway through with a cryptic Aer error.")
     args = parser.parse_args()
 
     import sys
+    from datetime import datetime
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from data.example_sequences import EXAMPLE_SEQUENCES
 
-    os.makedirs(os.path.dirname(RESULTS_CSV), exist_ok=True)
-    rows = []
-    for name, seq in EXAMPLE_SEQUENCES.items():
-        print(f"running: {name} ({len(seq)} nt)...")
-        rows.append(run_one(name, seq, use_qaoa=args.qaoa, max_qubits_qaoa=args.max_qubits_qaoa))
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = os.path.join(RESULTS_DIR, f"experiments_{timestamp}.csv")
 
-    with open(RESULTS_CSV, "w", newline="") as f:
+    # write incrementally, one row at a time -- if a later sequence crashes
+    # (bad --max-qubits-qaoa, out of memory, anything), everything run so
+    # far is already safely on disk instead of lost, unlike an all-at-once
+    # write at the very end.
+    with open(out_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
         writer.writeheader()
-        writer.writerows(rows)
+        for name, seq in EXAMPLE_SEQUENCES.items():
+            print(f"running: {name} ({len(seq)} nt)...")
+            row = run_one(name, seq, use_qaoa=args.qaoa, max_qubits_qaoa=args.max_qubits_qaoa,
+                          available_ram_gb=args.ram_gb)
+            writer.writerow(row)
+            f.flush()  # so partial results are readable even mid-run, not just after close()
 
-    print(f"\nwrote {len(rows)} rows to {RESULTS_CSV}")
+    print(f"\nwrote results to {out_path}")
     print("open it in Excel/Google Sheets/pandas -- this is your results table for the report.")
 
 

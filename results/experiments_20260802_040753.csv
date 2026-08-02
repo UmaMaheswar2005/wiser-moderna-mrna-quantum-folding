@@ -1,0 +1,5 @@
+sequence_name,n_nt,sequence,n_qubits_naive,n_qubits_filtered,nussinov_structure,nussinov_n_pairs,qubo_exact_structure,qubo_exact_energy,qubo_matches_nussinov,qaoa_structure,qaoa_energy,qaoa_runtime_sec,qaoa_matches_exact,vienna_mfe_structure,vienna_mfe_energy,base_pair_distance,precision,recall,f1,exact_match
+toy_hairpin_9nt,9,GGGAAACCC,9,,(((...))),3,(((...))),-5.0,True,(((...))),-5.0,4.73,True,,,,,,,
+toy_bulge_11nt,11,GGGACAAGCCC,10,,(((.....))),3,(((.....))),-5.0,True,(((.....))),-5.0,4.3,True,,,,,,,
+hairpin_A_12nt,12,GGGCAAAAGCCC,10,,((((....)))),4,((((....)))),-7.0,True,((((....)))),-7.0,4.06,True,,,,,,,
+hairpin_B_14nt,14,CCGGGAAAACCCGG,15,,(((((....))))),5,(((((....))))),-9.0,True,(((((....))))),-9.0,8.34,True,,,,,,,
