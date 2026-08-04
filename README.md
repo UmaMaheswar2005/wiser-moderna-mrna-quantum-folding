@@ -12,7 +12,7 @@ filtering.
 
 ## Team & contributions
 
-Solo participant: **[Uma Maheswar Reddy V]**, covering all suggested team roles —
+Solo participant: **Uma Maheswar Reddy V**, covering all suggested team roles —
 Project Lead (primary contact), Research Lead, Technical/Development Lead,
 Data Analysis Lead, and Documentation Lead.
 
@@ -26,7 +26,7 @@ Every classical component (QUBO construction, Nussinov DP, brute-force
 solver, scaling analysis) was executed and cross-validated before being
 trusted. The QAOA and ViennaRNA-dependent components were written without
 direct execution access in this environment and were independently run and
-verified by [Uma Maheswar Reddy V] before being used for real results — starting with
+verified by Uma Maheswar Reddy V before being used for real results — starting with
 reproducing the exact `(((...)))` structure on a 9-nt toy example as a
 correctness checkpoint (see §3) before trusting anything at larger scale.
 Several real bugs were caught this way during development, not by
