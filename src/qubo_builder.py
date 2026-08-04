@@ -34,15 +34,23 @@ from sequence_utils import generate_candidate_pairs
 
 
 def build_qubo(sequence, min_loop=3, pair_reward=1.0, stack_bonus=1.0,
-                penalty_overlap=8.0, penalty_pseudoknot=8.0):
+                penalty_overlap=8.0, penalty_pseudoknot=8.0, restrict_to_pairs=None):
     """
     Returns
     -------
     linear : (m,) numpy array        -- diagonal / linear coefficients
     quadratic : dict {(a,b): coeff}  -- off-diagonal coefficients, a < b
     pairs : list[(i,j)]              -- candidate pair for each variable index
+
+    `restrict_to_pairs`: if given (a list of (i,j) tuples), build the QUBO
+    over exactly this candidate set instead of regenerating the full naive
+    list from scratch. This is what makes base-pair-probability filtering
+    (classical_reference.filter_candidates_by_probability) actually reduce
+    the qubit count of the QUBO you hand to a solver, rather than just being
+    a number you report -- pass its output straight in here.
     """
-    pairs = generate_candidate_pairs(sequence, min_loop=min_loop)
+    pairs = restrict_to_pairs if restrict_to_pairs is not None else \
+        generate_candidate_pairs(sequence, min_loop=min_loop)
     m = len(pairs)
     pair_index = {p: k for k, p in enumerate(pairs)}
 

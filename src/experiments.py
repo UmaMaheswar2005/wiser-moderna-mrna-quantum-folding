@@ -215,14 +215,24 @@ def experiment_1(n_seeds=5, reps=2, shots=2048, alpha=0.25):
 # Experiment 2: Circuit depth (reps p) vs. accuracy
 # ─────────────────────────────────────────────────────────────────────────────
 
-def experiment_2(rep_values=(1, 2, 3), n_seeds=3, shots=2048, alpha=0.25):
+def experiment_2(rep_values=(1, 2, 3), n_seeds=1, shots=2048, alpha=0.25, maxiter=25):
     """
     Research question: Does deeper QAOA (more reps) find better solutions?
 
-    Method: Run QAOA with p=1, 2, 3 reps on each sequence, 3 seeds each.
-    Report success rate at each depth. Plot success rate vs depth.
-    This directly addresses the "scaling and quantum resource analysis"
-    judging criterion: more depth costs more gates, but does it buy accuracy?
+    Method: Run QAOA with p=1, 2, 3 reps on each sequence. Report success
+    rate (or best energy, for the 23-qubit sequences where ground truth is
+    unknown) at each depth.
+
+    Timing note (measured on qBraid Small tier, 23-qubit sequence):
+    ~9.2s/COBYLA iteration at reps=1, scaling roughly linearly with reps
+    (reps=3 ~= 3x the gates ~= 3x the per-iteration cost). The historical
+    defaults here (n_seeds=3, maxiter=150) would take ~14 hours across both
+    23-qubit sequences -- not viable in one session. n_seeds=1 and
+    maxiter=25 bring the same sweep to ~30 minutes. This trades away
+    seed-level reliability statistics (already characterized for these
+    sequences in Experiment 1) in exchange for actually being able to see
+    the depth trend at all. Raise n_seeds back to 3 later if you have a
+    multi-hour window to let it run unattended.
     """
     print("\n" + "="*65)
     print("EXPERIMENT 2: Circuit depth (reps p) vs. accuracy")
@@ -233,9 +243,19 @@ def experiment_2(rep_values=(1, 2, 3), n_seeds=3, shots=2048, alpha=0.25):
         return
     from quantum_solver_qaoa import solve_qubo_qaoa
 
-    # use only the smallest sequences so runtime stays manageable
-    small_seqs = {k: v for k, v in QAOA_SEQUENCES.items()
-                  if len(build_qubo(v)[2]) <= 16}
+    # Deliberately picked, not a blanket qubit cutoff: two "easy" sequences
+    # that hit 100% reliability in Experiment 1 (as a control/baseline) and
+    # the two "hard" ones that DIDN'T (stem_bulge_15nt: 40%, random_15nt_seedB:
+    # 80%) -- this is the actual point of Experiment 2. Testing depth only on
+    # sequences that already succeed 100% of the time can't show whether depth
+    # helps, because there's no room to see an improvement. Testing it here,
+    # on cases that struggled, can.
+    small_seqs = {
+        "toy_hairpin_9nt": QAOA_SEQUENCES["toy_hairpin_9nt"],       # easy control (9q)
+        "hairpin_A_12nt": QAOA_SEQUENCES["hairpin_A_12nt"],         # easy control (10q)
+        "stem_bulge_15nt": QAOA_SEQUENCES["stem_bulge_15nt"],       # hard: 40% in Exp1
+        "random_15nt_seedB": QAOA_SEQUENCES["random_15nt_seedB"],   # hard: 80% in Exp1
+    }
 
     rows = []
     for name, seq in small_seqs.items():
@@ -248,11 +268,15 @@ def experiment_2(rep_values=(1, 2, 3), n_seeds=3, shots=2048, alpha=0.25):
         for reps in rep_values:
             energies = []
             for seed in range(n_seeds):
+                t0 = time.time()
                 try:
                     result = solve_qubo_qaoa(linear, quadratic, m, reps=reps,
                                               shots=shots, alpha=alpha, seed=seed,
-                                              verbose=False, available_ram_gb=4)
+                                              maxiter=maxiter, verbose=False,
+                                              available_ram_gb=4)
                     energies.append(result["energy"])
+                    print(f"      reps={reps} seed={seed}: energy={result['energy']:.3f} "
+                          f"({time.time()-t0:.1f}s)")
                 except Exception as e:
                     print(f"    reps={reps} seed={seed} failed: {e}")
 
@@ -287,24 +311,46 @@ def experiment_2(rep_values=(1, 2, 3), n_seeds=3, shots=2048, alpha=0.25):
         writer.writerows(rows)
     print(f"\n  saved -> {csv_path}")
 
-    # plot: one line per sequence, x=reps, y=success rate
-    fig, ax = plt.subplots(figsize=(7, 4))
-    seq_names_done = []
+    # Two-panel plot: success rate (left, for sequences with known ground truth)
+    # and best-energy trend (right, for sequences above the m=20 brute-force
+    # cutoff, where success_rate is legitimately unknown). The old version of
+    # this plot only drew the left panel and silently dropped every sequence
+    # without a known ground truth -- exactly the two "hard" sequences this
+    # experiment exists to look at. Fixed here.
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    has_success_rate = any(r["success_rate"] != "" for r in rows)
+    has_energy_only = any(r["success_rate"] == "" for r in rows)
+
     for name in small_seqs:
         seq_rows_data = [(r["reps"], r["success_rate"])
                          for r in rows if r["sequence_name"] == name and r["success_rate"] != ""]
-        if not seq_rows_data:
-            continue
-        reps_vals, rates = zip(*sorted(seq_rows_data))
-        ax.plot(reps_vals, rates, marker="o", label=name)
+        if seq_rows_data:
+            reps_vals, rates = zip(*sorted(seq_rows_data))
+            ax1.plot(reps_vals, rates, marker="o", label=name)
 
-    ax.set_xlabel("QAOA reps (circuit depth p)")
-    ax.set_ylabel("success rate")
-    ax.set_title("Experiment 2: Does more circuit depth help?")
-    ax.set_xticks(list(rep_values))
-    ax.set_ylim(-0.05, 1.15)
-    ax.legend(fontsize=8, loc="lower right")
-    ax.grid(alpha=0.3)
+        energy_rows_data = [(r["reps"], r["best_energy"])
+                            for r in rows if r["sequence_name"] == name and r["success_rate"] == ""]
+        if energy_rows_data:
+            reps_vals, energies = zip(*sorted(energy_rows_data))
+            ax2.plot(reps_vals, energies, marker="o", label=name)
+
+    ax1.set_xlabel("QAOA reps (circuit depth p)")
+    ax1.set_ylabel("success rate")
+    ax1.set_title("Sequences with known ground truth (\u226420 qubits)")
+    ax1.set_xticks(list(rep_values))
+    ax1.set_ylim(-0.05, 1.15)
+    ax1.legend(fontsize=8, loc="lower right")
+    ax1.grid(alpha=0.3)
+
+    ax2.set_xlabel("QAOA reps (circuit depth p)")
+    ax2.set_ylabel("best energy found (lower = better)")
+    ax2.set_title("Sequences above brute-force cutoff (>20 qubits)\nground truth unknown -- energy trend is the signal")
+    ax2.set_xticks(list(rep_values))
+    ax2.legend(fontsize=8)
+    ax2.grid(alpha=0.3)
+
+    fig.suptitle("Experiment 2: Does more circuit depth help?")
     fig.tight_layout()
     plot_path = os.path.join(RESULTS_DIR, "exp2_depth.png")
     fig.savefig(plot_path, dpi=150)
@@ -437,7 +483,7 @@ def experiment_3():
 # Experiment 4: CVaR alpha vs. convergence speed
 # ─────────────────────────────────────────────────────────────────────────────
 
-def experiment_4(alpha_values=(0.1, 0.25, 0.5, 0.75), reps=2, shots=2048, seed=0):
+def experiment_4(alpha_values=(0.1, 0.25, 0.5, 0.75), reps=2, shots=2048, seed=0, maxiter=25):
     """
     Research question: Does the CVaR alpha parameter affect how quickly
     QAOA converges?
@@ -449,8 +495,12 @@ def experiment_4(alpha_values=(0.1, 0.25, 0.5, 0.75), reps=2, shots=2048, seed=0
     IBM/Moderna paper), so testing what happens as alpha varies is a direct
     extension of that published work.
 
-    Method: For one small sequence (exact ground state known), run QAOA
-    with each alpha value and plot the CVaR convergence trace.
+    Method: For an easy sequence (100% reliable in Exp 1) and a hard one
+    (struggled in Exp 1), run QAOA with each alpha value and plot the CVaR
+    convergence trace for both, side by side. Testing only the easy case
+    (as the original version of this function did) can't show whether
+    alpha matters, because the easy case succeeds regardless of alpha --
+    there's no room to see a difference.
     """
     print("\n" + "="*65)
     print("EXPERIMENT 4: CVaR alpha vs. convergence speed")
@@ -461,53 +511,63 @@ def experiment_4(alpha_values=(0.1, 0.25, 0.5, 0.75), reps=2, shots=2048, seed=0
         return
     from quantum_solver_qaoa import solve_qubo_qaoa
 
-    seq = "GGGAAACCC"   # 9 qubits, exact ground state = -5.0 (with stack_bonus=1)
-    linear, quadratic, pairs = get_qubo(seq, stack_bonus=1.0)
-    m = len(pairs)
-    gt_x, gt_energy = get_ground_truth(seq, linear, quadratic, m)
-    print(f"  sequence: {seq}  ({m} qubits, ground state energy: {gt_energy})")
+    test_cases = {
+        "toy_hairpin_9nt (easy, 100% in Exp1)": QAOA_SEQUENCES["toy_hairpin_9nt"],
+        "stem_bulge_15nt (hard, 40% in Exp1)": QAOA_SEQUENCES["stem_bulge_15nt"],
+    }
 
-    rows = []
-    fig, ax = plt.subplots(figsize=(8, 4.5))
+    all_rows = []
+    fig, axes = plt.subplots(1, len(test_cases), figsize=(13, 4.5), sharey=False)
 
-    for alpha in alpha_values:
-        print(f"  running alpha={alpha}...")
-        result = solve_qubo_qaoa(linear, quadratic, m, reps=reps, shots=shots,
-                                  alpha=alpha, seed=seed, verbose=False,
-                                  available_ram_gb=4)
-        trace = result["cvar_trace"]
-        ax.plot(trace, label=f"alpha={alpha}", linewidth=1.5)
-        found_gs = abs(result["energy"] - gt_energy) < 0.01 if gt_energy else None
+    for ax, (case_label, seq) in zip(axes, test_cases.items()):
+        linear, quadratic, pairs = get_qubo(seq, stack_bonus=1.0)
+        m = len(pairs)
+        gt_x, gt_energy = get_ground_truth(seq, linear, quadratic, m)
+        print(f"\n  {case_label}: {seq} ({m} qubits, ground state energy: {gt_energy})")
 
-        rows.append({
-            "alpha": alpha, "reps": reps, "shots": shots,
-            "n_iterations": len(trace),
-            "final_cvar": round(trace[-1], 4),
-            "best_energy_found": round(result["energy"], 4),
-            "ground_state_energy": round(gt_energy, 4) if gt_energy else "",
-            "found_ground_state": found_gs,
-            "convergence_iteration": next(
-                (i for i, v in enumerate(trace) if abs(v - result["energy"]) < 0.5),
-                len(trace)),
-        })
-        print(f"    final CVaR: {trace[-1]:.3f}, best energy: {result['energy']:.3f}, "
-              f"found ground state: {found_gs}")
+        for alpha in alpha_values:
+            t0 = time.time()
+            print(f"    running alpha={alpha}...")
+            result = solve_qubo_qaoa(linear, quadratic, m, reps=reps, shots=shots,
+                                      alpha=alpha, seed=seed, maxiter=maxiter,
+                                      verbose=False, available_ram_gb=4)
+            print(f"      done in {time.time()-t0:.1f}s")
+            trace = result["cvar_trace"]
+            ax.plot(trace, label=f"alpha={alpha}", linewidth=1.5)
+            found_gs = abs(result["energy"] - gt_energy) < 0.01 if gt_energy else None
 
-    if gt_energy is not None:
-        ax.axhline(gt_energy, color="black", linestyle="--",
-                   linewidth=1, label=f"ground state ({gt_energy})")
+            all_rows.append({
+                "case": case_label, "sequence": seq, "n_qubits": m,
+                "alpha": alpha, "reps": reps, "shots": shots,
+                "n_iterations": len(trace),
+                "final_cvar": round(trace[-1], 4),
+                "best_energy_found": round(result["energy"], 4),
+                "ground_state_energy": round(gt_energy, 4) if gt_energy else "",
+                "found_ground_state": found_gs,
+                "convergence_iteration": next(
+                    (i for i, v in enumerate(trace) if abs(v - result["energy"]) < 0.5),
+                    len(trace)),
+            })
+            print(f"      final CVaR: {trace[-1]:.3f}, best energy: {result['energy']:.3f}, "
+                  f"found ground state: {found_gs}")
 
-    ax.set_xlabel("COBYLA iteration")
-    ax.set_ylabel("CVaR loss value")
-    ax.set_title(f"Experiment 4: CVaR alpha vs. convergence\n"
-                 f"(sequence: {seq}, reps={reps}, shots={shots})")
-    ax.legend()
-    ax.grid(alpha=0.3)
+        if gt_energy is not None:
+            ax.axhline(gt_energy, color="black", linestyle="--",
+                       linewidth=1, label=f"ground state ({gt_energy})")
+        ax.set_xlabel("COBYLA iteration")
+        ax.set_ylabel("CVaR loss value")
+        ax.set_title(case_label, fontsize=10)
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.3)
+
+    fig.suptitle(f"Experiment 4: CVaR alpha vs. convergence, easy vs. hard "
+                 f"(reps={reps}, shots={shots})")
     fig.tight_layout()
     plot_path = os.path.join(RESULTS_DIR, "exp4_cvar_alpha.png")
     fig.savefig(plot_path, dpi=150)
     print(f"\n  saved -> {plot_path}")
 
+    rows = all_rows
     csv_path = os.path.join(RESULTS_DIR, "exp4_cvar_alpha.csv")
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
@@ -525,6 +585,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp", type=int, choices=[1,2,3,4],
                         help="run only one experiment (1-4); default = all four")
+    parser.add_argument("--maxiter", type=int, default=25,
+                        help="COBYLA max iterations for exp 2 and 4 (default 25, "
+                             "chosen from measured timing on 23-qubit sequences -- "
+                             "the old default of 150 measured out to ~14 hours for "
+                             "exp 2's full sweep. Raise this if you have time to "
+                             "spare and want tighter convergence.")
     args = parser.parse_args()
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -533,11 +599,11 @@ if __name__ == "__main__":
     if run_all or args.exp == 1:
         experiment_1()
     if run_all or args.exp == 2:
-        experiment_2()
+        experiment_2(maxiter=args.maxiter)
     if run_all or args.exp == 3:
         experiment_3()
     if run_all or args.exp == 4:
-        experiment_4()
+        experiment_4(maxiter=args.maxiter)
 
     print("\n\nAll done. Results in results/exp1_*.csv, exp2_*.csv, etc.")
     print("These four CSVs and their plots are your experimental evidence for the report.")

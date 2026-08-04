@@ -1,0 +1,2 @@
+sequence,n_nt,n_qubits_naive,n_qubits_filtered,reps,maxiter,shots,runtime_sec,qaoa_structure,qaoa_qubo_energy,vienna_mfe_structure,vienna_mfe_energy_kcal_mol,n_pairs_matching,n_pairs_mfe_only,n_pairs_qaoa_only,base_pair_distance,precision,recall,f1,exact_match
+GGAGCAAAACUUGUCGAUUGAGAACAAAAUACAGAAUUUGCUUG,44,313,26,2,25,2048,435.8,..((((((..((((..((((....).).))))))..))))))..,-23.0,.(((((((..((((...(((....)))...))))..))))))).,-7.900000095367432,11,3,3,6,0.7857,0.7857,0.7857,False
