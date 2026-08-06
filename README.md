@@ -272,6 +272,13 @@ that can't finish.
 
 ---
 
+## 📺 Presentation & Video Walkthrough
+
+*  **[Watch Full Video Walkthrough ](https://drive.google.com/file/d/1bVIZFw41axQLuVspdJOsXEIfUrBW8tdL/view?usp=drive_link)**
+*  **[View Slide Deck Online ](https://docs.google.com/presentation/d/1PLNY5_0kDBafjxQa30I3AGdIHRLaOyEP/edit?usp=drive_link&ouid=100161350168352552956&rtpof=true&sd=true)**
+
+---
+
 ## References
 
 - Alevras, Metkar, Yamamoto, Kumar, Friedhoff, Park, Takeori, LaDue, Davis,
